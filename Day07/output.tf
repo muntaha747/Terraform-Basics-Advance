@@ -7,5 +7,5 @@ output "vpc_id" {
 }
 
 output "ec2_id" {
-  value = aws_instance.my-vm.id
+  value = aws_instance.my-vm[0].id
 }
