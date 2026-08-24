@@ -46,11 +46,11 @@ variable "ami-image" {
   # No "type" set here either — inferred as string
 }
 
-variable "resource_count" {
-  description = "Number of Instances to be created"
-  type        = number
-  # No default value — this variable MUST be supplied externally (e.g. via terraform.tfvars or -var flag)
-} # We have mentioned the default value in the terraform.tfvars
+# variable "resource_count" {
+#   description = "Number of Instances to be created"
+#   type        = number
+#   # No default value — this variable MUST be supplied externally (e.g. via terraform.tfvars or -var flag)
+# } # We have mentioned the default value in the terraform.tfvars
 
 
 
