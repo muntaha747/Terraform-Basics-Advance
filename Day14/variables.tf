@@ -7,7 +7,7 @@ variable "environment" {
 
 }
 
-variable "bucket-name" {
+variable "bucket_name" {
   type    = string
   default = "storage-cloudfront-bucket"
 

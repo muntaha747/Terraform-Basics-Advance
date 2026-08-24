@@ -1,5 +1,5 @@
-resource aws_s3_bucket "storage" {
-    bucket = var.bucket-name
+resource "aws_s3_bucket" "storage" {
+  bucket = var.bucket_name
 }
 
 
@@ -9,7 +9,7 @@ resource aws_s3_bucket "storage" {
 
 
 resource "aws_s3_bucket_public_access_block" "storage" {
-  bucket = var.bucket-name
+  bucket = var.bucket_name
 
   block_public_acls       = true
   block_public_policy     = true
@@ -18,13 +18,13 @@ resource "aws_s3_bucket_public_access_block" "storage" {
 }
 
 ################################################################
-# Authentication (Origin Access Control)
+# Authentication (Origin Access Control) --> for S3
 ################################################################
 
 resource "aws_cloudfront_origin_access_control" "origin_access_control" {
   name                              = "demo-oac"
   description                       = "Example Policy"
-  origin_access_control_origin_type = "s3"
+  origin_access_control_origin_type = "s3" #We need to s3
   signing_behavior                  = "always"
   signing_protocol                  = "sigv4"
 }
@@ -32,57 +32,125 @@ resource "aws_cloudfront_origin_access_control" "origin_access_control" {
 ################################################################
 # Authorization AWS s3 Bucket Policy with IAM Policy
 ################################################################
-
-resource "aws_s3_bucket_policy" "allow_access_from_another_account" {
-  bucket = aws_s3_bucket.storage.id
-  depends_on = [aws_s3_bucket_public_access_block.storage]
+resource "aws_s3_bucket_policy" "allow_access_from_Cloud_Front" {
+  bucket     = aws_s3_bucket.storage.id
+  depends_on = [aws_s3_bucket_public_access_block.storage] #So we have created an explicit dependency on the 2nd resource which is aws_s3 public access block.
   policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
+    "Version" : "2012-10-17",
+    "Statement" : [
       {
-        Sid    = "AllowCloudFrontGetObject"
-        Effect = "Allow"
-        Principal = {
-          Service = "cloudfront.amazonaws.com"
-        }
-        Action   = "s3:GetObject"
-        Resource = "${aws_s3_bucket.storage.arn}/*"
-        Condition = {
-          StringEquals = {
-            "AWS:SourceArn" = aws_cloudfront_distribution.s3_distribution.arn
-          }
-        }
-      },
-      {
-        Sid    = "AllowCloudFrontListBucket"
-        Effect = "Allow"
-        Principal = {
-          Service = "cloudfront.amazonaws.com"
-        }
-        Action   = "s3:ListBucket"
-        Resource = aws_s3_bucket.storage.arn
-        Condition = {
-          StringEquals = {
-            "AWS:SourceArn" = aws_cloudfront_distribution.s3_distribution.arn
+        "Sid" : "AllowCloudFront",
+        "Effect" : "Allow",
+        "Principal" : {
+          "Service" : "cloudfront.amazonaws.com"
+        },
+        "Action" : [
+          "s3:GetObject",
+          "s3:ListBucket"
+        ],
+        "Resource" : "${aws_s3_bucket.storage.arn}/*",
+        "Condition" : {
+          "StringEquals" : {
+            "AWS:SourceArn" : aws_cloudfront_distribution.s3_distribution.arn
           }
         }
       }
     ]
   })
 }
-
-
-
 ################################################################
-# s3 Bucket Object
+# s3 Bucket Object to upload file in the bucket from your local.
 ################################################################
 
-resource "aws_s3_object" "object" {
-  bucket = aws_s3_bucket.storage.id
+resource "aws_s3_object" "object_upload_in_s3" {
   for_each = fileset("${path.module}/www", "**/*")
-  key      = each.value
-  source   = "${path.module}/www/${each.value}"
-  etag = filemd5("${path.module}/www/${each.value}")
-  content_type = lookup({})
+
+  bucket = var.bucket_name
+  key    = each.value
+  source = "${path.module}/www/${each.value}"
+  etag   = filemd5("${path.module}/www/${each.value}")
+
+  content_type = lookup(
+    {
+      "html" = "text/html"
+      "css"  = "text/css"
+      "js"   = "application/javascript"
+      "json" = "application/json"
+      "png"  = "image/png"
+      "jpg"  = "image/jpeg"
+      "jpeg" = "image/jpeg"
+      "svg"  = "image/svg+xml"
+      "ico"  = "image/x-icon"
+      "txt"  = "text/plain"
+  }, split(".", each.value)[length(split(".", each.value)) - 1], "application/octet-stream")
 }
 
+################################################################
+# Cloud Front for the s3 bucket.
+################################################################
+resource "aws_cloudfront_distribution" "s3_distribution" {
+  origin {
+    domain_name              = aws_s3_bucket.storage.bucket_regional_domain_name
+    origin_access_control_id = aws_cloudfront_origin_access_control.origin_access_control.id
+    origin_id                = local.origin_id
+  }
+
+  enabled             = true
+  is_ipv6_enabled     = true
+  comment             = "Some comment"
+  default_root_object = "index.html"
+
+  default_cache_behavior {
+    allowed_methods  = ["GET", "HEAD"]
+    cached_methods   = ["GET", "HEAD"]
+    target_origin_id = local.origin_id
+
+    forwarded_values {
+      query_string = false
+
+      cookies {
+        forward = "none"
+      }
+    }
+
+    viewer_protocol_policy = "redirect-to-https"
+    min_ttl                = 0
+    default_ttl            = 3600
+    max_ttl                = 86400
+  }
+
+  # Cache behavior with precedence 1
+  ordered_cache_behavior {
+    path_pattern     = "/api/*"
+    allowed_methods  = ["GET", "HEAD"]
+    cached_methods   = ["GET", "HEAD"]
+    target_origin_id = local.origin_id
+
+    forwarded_values {
+      query_string = false
+      headers      = ["Origin"]
+
+      cookies {
+        forward = "none"
+      }
+    }
+
+    min_ttl                = 0
+    default_ttl            = 86400
+    max_ttl                = 31536000
+    compress               = true
+    viewer_protocol_policy = "redirect-to-https"
+  }
+
+  price_class = "PriceClass_100"
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    cloudfront_default_certificate = true
+  }
+}

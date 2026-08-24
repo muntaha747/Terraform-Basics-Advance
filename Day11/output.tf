@@ -12,9 +12,13 @@
 # }
 
 
-output "instances_id" {
-  value = local.all_instances_ids
-}
+# output "instances_id" {
+#   value = local.all_instances_ids
+# }
+
+# output "formatted_project_name" {
+#   value = local.formatted_project_name
+# }
 
 output "formatted_project_name" {
   value = local.formatted_project_name

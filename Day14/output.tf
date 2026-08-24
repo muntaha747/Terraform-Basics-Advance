@@ -12,6 +12,6 @@
 # }
 
 
-output "instances_id" {
-  value = aws_instance.ec2-instance[*].id
-}
+# output "instances_id" {
+#   value = aws_instance.ec2-instance[*].id
+# }
