@@ -1,5 +1,5 @@
 resource "aws_s3_bucket" "storage" {
-  bucket = var.bucket_name
+  bucket = "storage-cloudfront-bucket"
 }
 
 
@@ -9,7 +9,7 @@ resource "aws_s3_bucket" "storage" {
 
 
 resource "aws_s3_bucket_public_access_block" "storage" {
-  bucket = var.bucket_name
+  bucket = "storage-cloudfront-bucket"
 
   block_public_acls       = true
   block_public_policy     = true
@@ -45,8 +45,7 @@ resource "aws_s3_bucket_policy" "allow_access_from_Cloud_Front" {
           "Service" : "cloudfront.amazonaws.com"
         },
         "Action" : [
-          "s3:GetObject",
-          "s3:ListBucket"
+          "s3:GetObject"
         ],
         "Resource" : "${aws_s3_bucket.storage.arn}/*",
         "Condition" : {
